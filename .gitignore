@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.nvda-addon
+HANDOVER.*
+SmokeTest.ps1
+Test-ReleasePrivacy.ps1
+build/
+dist/

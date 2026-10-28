@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Ollama Speech for NVDA</title></head>
+<body>
+<h1>Ollama Speech for NVDA</h1>
+<p>Version 1.0.</p>
+<p>Use Phonon or LFM3-Audio from an Ollama server, with playback through NVDA's selected audio output. Models and voices are downloaded separately.</p>
+<h2>Changelog</h2>
+<h3>1.0</h3>
+<ul>
+<li>First release with Phonon, multilingual Phonon and LFM3-Audio.</li>
+<li>Model, Language filter and Voice selection in Speech settings and the synth ring.</li>
+<li>Streaming audio, rate, rate boost, pitch, volume, pause, cancellation, spelling and Say All.</li>
+<li>Connection panel with model discovery, eSpeak recovery, Help and signed GitHub updates.</li>
+</ul>
+<h2>Setup</h2>
+<p>Requires NVDA 2026.2 or newer on Windows and a reachable Ollama speech server. Both models were tested with Ollama 0.40.12 on an Apple Silicon Mac. Phonon's Ollama packages require Apple Silicon and Ollama 0.40.9 or newer; see the <a href="https://docs.ollama.com/capabilities/speech">speech guide</a> for current requirements.</p>
+<p>On the server, install and run Ollama, then download whichever models you want:</p>
+<pre><code>ollama pull phonon
+ollama pull phonon:40m-multilingual
+ollama pull lfm3-audio</code></pre>
+<p>Ollama normally accepts connections only from its own computer. For a separate server, follow Ollama's <a href="https://docs.ollama.com/faq#how-can-i-expose-ollama-on-my-network">network setup guide</a> and restrict access to a trusted private network. Do not expose it to the public Internet.</p>
+<ol>
+<li>Install this add-on and restart NVDA.</li>
+<li>Open <strong>NVDA Settings &gt; Ollama Speech</strong>. Enter the server's address and port, such as <code>http://your-server:11434</code>, replacing <code>your-server</code> with its hostname or private IP address. <code>localhost</code> means the Windows computer running NVDA, not a separate Mac.</li>
+<li>Press <strong>Refresh models</strong> and check <strong>Connection status</strong>.</li>
+<li>Press <strong>Use Ollama Speech</strong>. Choose <strong>Model</strong>, optionally narrow the list with <strong>Language filter</strong>, then choose <strong>Voice</strong>, in NVDA's Speech settings or synth ring.</li>
+</ol>
+<p>Only installed Phonon and LFM3-Audio models with valid speech capabilities and voice lists are offered. Use <strong>Refresh models</strong> after adding or removing models on the server. <strong>Help</strong> opens this manual.</p>
+<h2>Models And Languages</h2>
+<ul>
+<li><a href="https://ollama.com/library/phonon">Phonon</a>: the initial default, for English.</li>
+<li><a href="https://ollama.com/library/phonon:40m-multilingual">Phonon multilingual</a>: English, French, German, Spanish and Portuguese.</li>
+<li><a href="https://ollama.com/library/lfm3-audio">LFM3-Audio</a>: its own language and accent presets.</li>
+</ul>
+<p>LFM3-Audio can read mixed-language passages without manually changing voices. Language handling comes from the selected model: the add-on does not translate text or automatically select another voice preset. Pronunciation and responsiveness vary with the model, voice and text.</p>
+<h2>Speech Controls</h2>
+<p>Model changes refresh the Language filter and Voice lists without restarting NVDA. <strong>All languages</strong> shows every voice offered by that model. Choosing a language or regional accent narrows the Voice list; it does not translate text or restrict the model's multilingual reading. <strong>Unspecified language</strong> contains the model's default and any voices without verified language metadata. Phonon's character presets appear under <strong>English Character Voices</strong>, separate from its regional English voices.</p>
+<p>Language groups use Gradium's published Phonon catalogue and LFM3's language-named voice presets, matched only to voices your server actually offers. No extra download is needed for grouping. Rate, pitch and volume are preserved. Returning to a model restores its previous language filter and voice within the current synth session, if available; otherwise All languages and an available voice are used.</p>
+<p>In SoundWave versions with Model support, choose Model, then Language and Voice in its voice options before testing or rendering.</p>
+<p>Rate, rate boost, pitch and volume use NVDA's bundled Sonic library. Rate 50 keeps the original speed; rate boost doubles the selected speed. Shift pauses or resumes playback, and Control stops speech and discards cancelled audio. Spelling and Say All follow audio playback.</p>
+<p>A cold model may take several seconds to start. Network latency and server load also affect responsiveness.</p>
+<h2>Recovery</h2>
+<p><strong>Use eSpeak NG if the speech server fails</strong> is enabled by default. A missing model or failed speech request switches the active synthesizer to eSpeak NG.</p>
+<p>To reconnect, refresh models in the connection panel and press <strong>Use Ollama Speech</strong>. This uses the saved model if available, otherwise an available Phonon model, or LFM3-Audio if Phonon is absent. You can then choose your preferred Model and Voice.</p>
+<p>This network synthesizer is unavailable on secure screens.</p>
+<h2>Updates</h2>
+<p>In the connection panel, choose <strong>Never</strong>, <strong>Hourly</strong> or <strong>Daily</strong> checks; Daily is the default. <strong>Check for updates now</strong> checks manually. Updates come from this add-on's GitHub releases, not the speech server.</p>
+<p>The updater verifies the signed package information and download before installation. NVDA then offers its normal restart prompt.</p>
+<h2>Privacy</h2>
+<p>Speech text is sent to your configured server. HTTP is not encrypted; use a trusted private connection or encrypted tunnel. HTTPS uses normal certificate validation. API-key authentication and addresses containing credentials are not supported.</p>
+<p>The add-on does not save speech text or recordings. Model and voice metadata is cached for the current session; connection and speech preferences use NVDA's normal configuration. Failure diagnostics use NVDA's log without the spoken text.</p>
+<h2>Credits And Licenses</h2>
+<ul>
+<li>Andre Louis: creator and maintainer, product design, accessibility requirements and real-world testing.</li>
+<li>OpenAI Codex: development, testing and documentation assistance.</li>
+<li><a href="https://github.com/gradium-ai/xn-ptts">Gradium</a>: Phonon models and the <a href="https://huggingface.co/gradium/phonon-voices">voice-language catalogue</a> (Apache-2.0; a small metadata snapshot is included, not voice recordings).</li>
+<li><a href="https://huggingface.co/LiquidAI/LFM3-Audio-2B">Liquid AI</a>: LFM3-Audio.</li>
+<li><a href="https://github.com/ollama/ollama">Ollama</a>: server and speech API.</li>
+<li><a href="https://github.com/nvaccess/nvda">NV Access and NVDA contributors</a>: playback, settings and bundled <a href="https://github.com/waywardgeek/sonic">Sonic</a> processing.</li>
+<li>Andre Louis's Apollo II driver: playback-lifecycle approach and BSD-3-Clause updater.</li>
+</ul>
+<p>Add-on code is GPL-2.0-or-later, except the identified BSD-3-Clause updater and Apache-2.0 voice-language metadata. Model licenses are separate: Phonon 31M English is Apache-2.0; Phonon 40M variants are CC BY-NC 4.0, for noncommercial use. LFM3-Audio uses the LFM Open License v1.0. Check each model's linked page for its terms.</p>
+</body>
+</html>
