@@ -39,6 +39,9 @@ CHECK_INTERVAL_MS = 86400 * 1000
 INTERVALS = {"never": 0, "hourly": 3600 * 1000, "daily": CHECK_INTERVAL_MS}
 DOWNLOAD_BLOCK_SIZE = 8192
 MAX_MANIFEST_SIZE = 128 * 1024
+ADDON_ID = "ollamaSpeech"
+LEGACY_ADDON_ID = "phonon"
+MANIFEST_NAME = "ollamaSpeech-current-update.json"
 MAX_PACKAGE_SIZE = 64 * 1024 * 1024
 PUBLIC_MODULUS = "pyWLepGrFMDmgfVLTFiL6z59bmKNgcPYfcT7p0H3nZxvAoqsJdBbYzSmDEZY017k73Bb//UnadMhhxeBPqlAnDyJdwio3eDovSXeVDRG5HWAzTk1G5tWa37B+8H8C7qVaYu7IQPo5vvNCPb2Isl0vOgKz2uOtjvgJx6ViSnEl7PugG6g3FzMMaJPZLHBO7Uoth7kBhftoJkUhsj/fGdlBPLxMX4LnbEpuEU9JwxlJB/ZekxPB9jLdpLvOj0mM6RsOntHWTrmMBaMeaxK80xtSyDqY84S2aVALf3A3qkUTf3NWPT+3juezrC2p3ndynrCPt4E5qfxKThobuRpmgegG28kfZmLwVO94DlDmYcUsoA7f4IUgkFo0clg/TyIy2JG/dJMuUzFB1IWhKlWKLxnoAcfBlqmdS9B9q8somQQb15u7b7DAwvB4H2bZKtFmOpRFLBxTbXV3ZcKvtU4DnVK6UoJ2sRk74rK3OEZ+AyJOGRILohv7g/IG7kMukznPu6B"
 PUBLIC_EXPONENT = 65537
@@ -63,9 +66,9 @@ def _verifyManifest(info):
 	if not hmac.compare_digest(encoded, expected):
 		raise RuntimeError("The update signature is not valid.")
 	version = info.get("version")
-	if info.get("addon") != "phonon" or not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+(?:\.\d+)?", version):
+	if info.get("addon") != ADDON_ID or not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+(?:\.\d+)?", version):
 		raise RuntimeError("The signed update does not identify an Ollama Speech version.")
-	url = f"https://github.com/OnjLouis/ollamaSpeech/releases/download/v{version}/ollamaSpeech-{version}.nvda-addon"
+	url = f"https://github.com/OnjLouis/ollamaSpeech/releases/download/v{version}/ollama-speech-{version}.nvda-addon"
 	if info.get("url") != url:
 		raise RuntimeError("The signed update URL does not match its version.")
 	if type(info.get("size")) is not int or not 0 < info["size"] <= MAX_PACKAGE_SIZE:
@@ -113,6 +116,8 @@ def _downloadFile(url, destination, update=None, maxSize=MAX_PACKAGE_SIZE):
 
 class GitHubReleaseUpdater:
 	def __init__(self, addonName, addonLabel, owner, repo):
+		if addonName not in (ADDON_ID, LEGACY_ADDON_ID):
+			raise ValueError("This updater belongs only to Ollama Speech and its legacy installation.")
 		self.addonName = addonName
 		self.addonLabel = addonLabel
 		self.apiUrl = "https://api.github.com/repos/%s/%s/releases/latest" % (owner, repo)
@@ -214,13 +219,13 @@ class GitHubReleaseUpdater:
 		if data.get("draft") or data.get("prerelease"):
 			raise RuntimeError("The release is not a stable public update.")
 		asset = next(
-			(item for item in data.get("assets", []) if item.get("name") == "ollamaSpeech-update.json"),
+			(item for item in data.get("assets", []) if item.get("name") == MANIFEST_NAME),
 			None,
 		)
 		if not asset:
 			raise RuntimeError("The latest release has no signed Ollama Speech update manifest.")
 		version = str(data.get("tag_name", "")).removeprefix("v")
-		manifestUrl = f"https://github.com/OnjLouis/ollamaSpeech/releases/download/v{version}/ollamaSpeech-update.json"
+		manifestUrl = f"https://github.com/OnjLouis/ollamaSpeech/releases/download/v{version}/{MANIFEST_NAME}"
 		if asset.get("browser_download_url") != manifestUrl:
 			raise RuntimeError("The update manifest is not from the expected Ollama Speech release.")
 		request = urllib.request.Request(manifestUrl, headers={"User-Agent": "Ollama Speech NVDA add-on updater"})
@@ -234,7 +239,7 @@ class GitHubReleaseUpdater:
 			raise RuntimeError("The signed update does not match its release tag.")
 		return {
 			"version": info["version"],
-			"name": f"ollamaSpeech-{version}.nvda-addon",
+			"name": f"ollama-speech-{version}.nvda-addon",
 			"url": info["url"],
 			"size": info["size"],
 			"sha256": info["sha256"],
@@ -265,7 +270,8 @@ class GitHubReleaseUpdater:
 			return
 		self.state["lastCheck"] = time.time() * 1000
 		self._saveState()
-		if info is None or _parseVersion(info["version"]) <= _parseVersion(current.version):
+		migration = info is not None and self.addonName == LEGACY_ADDON_ID and _parseVersion(info["version"]) == _parseVersion(current.version)
+		if info is None or (_parseVersion(info["version"]) <= _parseVersion(current.version) and not migration):
 			if fromGui:
 				message = (_("No public Ollama Speech release is available yet.") if info is None else
 				           _("There are no updates available for %s.") % self.addonLabel)
@@ -273,6 +279,8 @@ class GitHubReleaseUpdater:
 			self._scheduleNext()
 			return
 		self.busy = True
+		if self.addonName == LEGACY_ADDON_ID:
+			info = dict(info, notes=_("This finishes moving Ollama Speech to its correctly named add-on folder. Your speech settings are retained. NVDA will offer one more normal restart after installation.\n\n") + info["notes"])
 		message = _(
 			"A new version of {addon} is available: {version}.\n\n"
 			"Do you want to download and install it now?\n\n{notes}"
@@ -311,10 +319,10 @@ class GitHubReleaseUpdater:
 				return
 			_verifyDownload(destination, info)
 			bundle = addonHandler.AddonBundle(destination)
-			if bundle.manifest.get("name") != self.addonName or str(bundle.manifest.get("version")) != info["version"]:
+			if bundle.manifest.get("name") != ADDON_ID or str(bundle.manifest.get("version")) != info["version"]:
 				raise RuntimeError("The downloaded add-on identity or version is incorrect.")
 			previous = self._currentAddon()
-			if any(addon.name == self.addonName and (getattr(addon, "isPendingInstall", False) or getattr(addon, "isPendingRemove", False))
+			if any(addon.name in (ADDON_ID, LEGACY_ADDON_ID) and (getattr(addon, "isPendingInstall", False) or getattr(addon, "isPendingRemove", False))
 			       for addon in addonHandler.getAvailableAddons()):
 				raise RuntimeError("Restart NVDA to complete the pending Ollama Speech add-on operation first.")
 			installResult = ExecAndPump(addonHandler.installAddonBundle, bundle)
@@ -323,7 +331,7 @@ class GitHubReleaseUpdater:
 				raise RuntimeError("NVDA rejected the downloaded add-on.")
 			if installed is None:
 				raise RuntimeError("NVDA did not stage the downloaded add-on.")
-			if previous:
+			if previous and not getattr(previous, "isPendingRemove", False):
 				previous.requestRemove()
 			if installed:
 				installed._cleanupAddonImports()

@@ -3,9 +3,12 @@
 <head><meta charset="utf-8"><title>Ollama Speech for NVDA</title></head>
 <body>
 <h1>Ollama Speech for NVDA</h1>
-<p>Version 1.0.</p>
+<p>Version 1.0.1.</p>
 <p>Use Phonon or LFM3-Audio from an Ollama server, with playback through NVDA's selected audio output. Models and voices are downloaded separately.</p>
 <h2>Changelog</h2>
+<h3>1.0.1</h3>
+<ul><li>Fixed stale Voice and Language filter choices in NVDA Speech settings after changing a language filter or model. Lists and selections now update together without restarting NVDA, while Cancel still restores the previous settings.</li></ul>
+<ul><li>Renamed the add-on folder and implementation modules for Ollama Speech. Existing connections, speech profiles and gestures are retained through a small compatibility entry point.</li></ul>
 <h3>1.0</h3>
 <ul>
 <li>First release with Phonon, multilingual Phonon and LFM3-Audio.</li>
@@ -47,6 +50,7 @@ ollama pull lfm3-audio</code></pre>
 <h2>Updates</h2>
 <p>In the connection panel, choose <strong>Never</strong>, <strong>Hourly</strong> or <strong>Daily</strong> checks; Daily is the default. <strong>Check for updates now</strong> checks manually. Updates come from this add-on's GitHub releases, not the speech server.</p>
 <p>The updater verifies the signed package information and download before installation. NVDA then offers its normal restart prompt.</p>
+<p>When updating from 1.0, the first update installs a compatibility package. After restarting NVDA, check for updates once more to finish moving from the old <code>phonon</code> add-on folder to <code>ollamaSpeech</code>. The second step also uses NVDA's normal restart prompt; it does not restart NVDA automatically. Automatic checks can offer this second step unless you selected Never. New installations should use <code>ollama-speech-1.0.1.nvda-addon</code> directly. Saved connections and speech preferences are retained. A small legacy synthesizer entry point remains solely to keep existing profiles and gestures working.</p>
 <h2>Privacy</h2>
 <p>Speech text is sent to your configured server. HTTP is not encrypted; use a trusted private connection or encrypted tunnel. HTTPS uses normal certificate validation. API-key authentication and addresses containing credentials are not supported.</p>
 <p>The add-on does not save speech text or recordings. Model and voice metadata is cached for the current session; connection and speech preferences use NVDA's normal configuration. Failure diagnostics use NVDA's log without the spoken text.</p>

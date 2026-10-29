@@ -128,12 +128,13 @@ sys.modules["autoSettingsUtils.utils"] = types.SimpleNamespace(
     StringParameterInfo=lambda id, name: types.SimpleNamespace(id=id, displayName=name))
 index_notice, done_notice = Notice(), Notice()
 handler = types.SimpleNamespace(SynthDriver=BaseSynth,
-    VoiceInfo=lambda *a, **k: (a, k), synthIndexReached=index_notice, synthDoneSpeaking=done_notice)
+    VoiceInfo=lambda id, name, language=None: types.SimpleNamespace(id=id, displayName=name, language=language),
+    synthIndexReached=index_notice, synthDoneSpeaking=done_notice)
 sys.modules["synthDriverHandler"] = handler
-phonon = importlib.import_module("synthDrivers.phonon")
-from synthDrivers.phonon._client import Client, Settings, ServerError, Cancelled, validate
-from synthDrivers.phonon._sequence import chunks, events, language
-from synthDrivers.phonon._audio import Processor
+phonon = importlib.import_module("synthDrivers._ollamaSpeech")
+from synthDrivers._ollamaSpeech._client import Client, Settings, ServerError, Cancelled, validate
+from synthDrivers._ollamaSpeech._sequence import chunks, events, language
+from synthDrivers._ollamaSpeech._audio import Processor
 
 
 def wait_for(predicate, timeout=3):
@@ -298,7 +299,7 @@ class NetworkTests(unittest.TestCase):
         self.assertEqual(self.server.requests, [])
 
     def test_read_timeout_is_bounded(self):
-        from synthDrivers.phonon import _client
+        from synthDrivers._ollamaSpeech import _client
         with patch.object(_client, "READ_TIMEOUT", 0.1):
             stream = self.client.audio("stall", "default", self.cancel)
             self.assertEqual(len(next(stream)), 2)
@@ -340,14 +341,14 @@ class SequenceTests(unittest.TestCase):
         self.assertEqual(language("phonon"), "en")
 
     def test_only_tested_families_are_exposed(self):
-        from synthDrivers.phonon._profiles import require_supported
+        from synthDrivers._ollamaSpeech._profiles import require_supported
         require_supported("phonon:40m-fr")
         require_supported("lfm3-audio:latest")
         with self.assertRaises(ValueError):
             require_supported("chat")
 
     def test_voice_language_is_model_specific(self):
-        from synthDrivers.phonon._profiles import voice_language
+        from synthDrivers._ollamaSpeech._profiles import voice_language
         self.assertEqual(voice_language("lfm3-audio", "female-british-english"), "en_GB")
         self.assertEqual(voice_language("lfm3-audio", "male-french"), "fr")
         self.assertEqual(voice_language("phonon:40m-de", "default"), "de")
@@ -383,7 +384,7 @@ class FakeClient:
 
 class DriverTests(unittest.TestCase):
     def setUp(self):
-        from synthDrivers.phonon import _catalogue
+        from synthDrivers._ollamaSpeech import _catalogue
         _catalogue.clear()
         index_notice.items.clear()
         done_notice.items.clear()
@@ -474,7 +475,7 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(self.driver.model, "lfm3-audio")
 
     def test_catalogue_is_scoped_to_server_and_does_not_share_mutable_values(self):
-        from synthDrivers.phonon import _catalogue
+        from synthDrivers._ollamaSpeech import _catalogue
         models = {"phonon": ["default"]}
         _catalogue.remember("http://one:11434", models)
         models["phonon"].append("unverified")
@@ -511,6 +512,11 @@ class DriverTests(unittest.TestCase):
         scheduled, changed, updated, saved = [], [], [], []
         driver = self.driver
         class VoicePanel:
+            def __init__(self):
+                self._voices = list(driver.availableVoices.values())
+                self._locales = list(driver.availableLocales.values())
+                self.voiceList = types.SimpleNamespace(SetItems=lambda items: setattr(self, 'voiceItems', items))
+                self.localeList = types.SimpleNamespace(SetItems=lambda items: setattr(self, 'localeItems', items))
             def IsBeingDeleted(self):
                 return False
             def getSettings(self):
@@ -533,6 +539,40 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(changed, [driver])
         self.assertEqual(updated, [{"changedSetting": "model"}])
         self.assertEqual(saved, [], "Dialog Cancel must still be able to restore prior settings")
+        self.assertEqual([v.id for v in panel._voices], list(driver.availableVoices))
+        self.assertEqual([v.id for v in panel._locales], list(driver.availableLocales))
+        self.assertEqual(panel.voiceItems, [v.displayName for v in driver.availableVoices.values()])
+
+    def test_language_change_refreshes_the_open_dialog_voice_cache(self):
+        handler.getSynth = lambda: object()
+        driver = self.driver
+        driver.reconfigure(Settings(model='phonon:40m-multilingual'), ['Maeve', 'Pippa', 'Zoey', 'Juniper'])
+        driver.locale = 'en_GB'
+        scheduled = []
+        class VoicePanel:
+            def __init__(self):
+                self._voices = list(driver.availableVoices.values())
+                self._locales = list(driver.availableLocales.values())
+                self.voiceList = types.SimpleNamespace(SetItems=lambda items: setattr(self, 'voiceItems', items))
+                self.localeList = types.SimpleNamespace(SetItems=lambda items: None)
+            def IsBeingDeleted(self): return False
+            def getSettings(self): return driver
+            def updateDriverSettings(self, **kwargs): pass
+        panel = VoicePanel()
+        gui = types.ModuleType('gui')
+        gui.settingsDialogs = types.SimpleNamespace(VoiceSettingsPanel=VoicePanel)
+        wx = types.SimpleNamespace(CallAfter=lambda fn, *args: scheduled.append((fn, args)),
+            Window=types.SimpleNamespace(FindFocus=lambda: panel))
+        with patch.dict(sys.modules, {'wx': wx, 'gui': gui, 'gui.settingsDialogs': gui.settingsDialogs}), \
+                patch.object(handler, 'getSynth', lambda: driver), \
+                patch.object(handler, 'changeVoice', lambda *args: None, create=True):
+            driver.locale = 'en_US'
+            fn, args = scheduled.pop()
+            fn(*args)
+            self.assertEqual([v.id for v in panel._voices], ['Zoey', 'Juniper'])
+            self.assertEqual(panel.voiceItems, ['Zoey', 'Juniper'])
+            driver.voice = panel._voices[1].id
+            self.assertEqual(driver.voice, 'Juniper')
 
     def test_model_change_outside_speech_dialog_saves_new_voice(self):
         driver = self.driver
@@ -602,14 +642,14 @@ class DriverTests(unittest.TestCase):
                 self.driver.initSettings()
 
     def test_phonon_catalogue_handles_unicode_and_character_voices_without_guessing(self):
-        from synthDrivers.phonon._profiles import voice_language
+        from synthDrivers._ollamaSpeech._profiles import voice_language
         self.assertEqual(voice_language("phonon:40m-multilingual", "Noe\u0301mie"), "fr_FR")
         self.assertEqual(voice_language("phonon:40m-multilingual", "Fairy Godmother"), "en")
         self.assertIsNone(voice_language("phonon:40m-multilingual", "default"))
         self.assertIsNone(voice_language("phonon:40m-multilingual", "Uncatalogued"))
 
     def test_phonon_catalogue_contains_the_complete_pinned_metadata_snapshot(self):
-        from synthDrivers.phonon._voice_languages import LANGUAGES, GROUPS
+        from synthDrivers._ollamaSpeech._voice_languages import LANGUAGES, GROUPS
         self.assertEqual(len(LANGUAGES), 102)
         self.assertEqual({key: len(value) for key, value in GROUPS.items()}, {
             "en": 12, "en_GB": 13, "en_US": 12, "de_DE": 13,

@@ -13,7 +13,7 @@ import types
 import unittest
 from unittest.mock import patch
 
-import test_phonon as fixture
+import test_ollama_speech as fixture
 
 
 class UpdaterTests(unittest.TestCase):
@@ -31,16 +31,16 @@ class UpdaterTests(unittest.TestCase):
             "wx": types.SimpleNamespace(),
             "core": types.SimpleNamespace(callLater=lambda *a: None),
         }
-        path = fixture.ADDON / "globalPlugins" / "phononSettings" / "_updater.py"
+        path = fixture.ADDON / "globalPlugins" / "ollamaSpeechSettings" / "_updater.py"
         spec = importlib.util.spec_from_file_location("isolated_updater", path)
         cls.updater = importlib.util.module_from_spec(spec)
         with patch.dict(sys.modules, dependencies):
             spec.loader.exec_module(cls.updater)
-        cls.info = {"addon": "phonon", "version": "0.2.0", "size": 4,
+        cls.info = {"addon": "ollamaSpeech", "version": "0.2.0", "size": 4,
                     "sha256": hashlib.sha256(b"test").hexdigest(),
-                    "url": "https://github.com/OnjLouis/ollamaSpeech/releases/download/v0.2.0/ollamaSpeech-0.2.0.nvda-addon"}
+                    "url": "https://github.com/OnjLouis/ollamaSpeech/releases/download/v0.2.0/ollama-speech-0.2.0.nvda-addon"}
         cls.cases = [cls.info]
-        for change in ({"addon": "samsungTVVoices"}, {"url": "https://example.invalid/package"},
+        for change in ({"addon": "samsungTVVoices"}, {"addon": "phonon"}, {"url": "https://example.invalid/package"},
                        {"version": "bad"}, {"size": 0}, {"size": True}, {"sha256": "x" * 64}):
             cls.cases.append(dict(cls.info, **change))
         payloads = [json.dumps(info, sort_keys=True, separators=(",", ":"), ensure_ascii=True) for info in cls.cases]
@@ -96,6 +96,10 @@ try {
         self.assertEqual(Path(updater.stateFile).name, "ollamaSpeechGithubUpdate.json")
         self.assertEqual(updater.apiUrl, "https://api.github.com/repos/OnjLouis/ollamaSpeech/releases/latest")
 
+    def test_updater_cannot_take_ownership_of_another_addon(self):
+        with self.assertRaises(ValueError):
+            self.updater.GitHubReleaseUpdater('phononLocal', 'Phonon', 'OnjLouis', 'phononNVDA')
+
     def test_nvda_staging_identity_cleanup_and_restart_order(self):
         module = self.updater
         for valid in (True, False):
@@ -105,7 +109,7 @@ try {
                     requestRemove=lambda: actions.append("remove previous"))
                 staged = types.SimpleNamespace(_cleanupAddonImports=lambda: actions.append("clean staged imports"))
                 addon = types.SimpleNamespace(
-                    AddonBundle=lambda path: types.SimpleNamespace(manifest={"name": "phonon" if valid else "other", "version": "0.2.0"}),
+                    AddonBundle=lambda path: types.SimpleNamespace(manifest={"name": "ollamaSpeech" if valid else "other", "version": "0.2.0"}),
                     getAvailableAddons=lambda: [previous],
                     installAddonBundle=lambda bundle: actions.append("stage") or staged)
                 progress = types.SimpleNamespace(Update=lambda value: (True, False), Destroy=lambda: actions.append("destroy progress"))
@@ -132,6 +136,25 @@ try {
                 else:
                     self.assertEqual(actions, ["error", "destroy progress"])
                 self.assertEqual(list((Path(folder) / "updates").iterdir()), [])
+
+    def test_equal_version_is_offered_only_to_finish_the_legacy_identity_migration(self):
+        module = self.updater
+        for identity, expected in (('phonon', True), ('ollamaSpeech', False)):
+            messages, installed = [], []
+            current = types.SimpleNamespace(name=identity, version='1.0.1', isPendingInstall=False)
+            gui = types.SimpleNamespace(mainFrame=None, messageBox=lambda text, *args: messages.append(text) or 4)
+            wx = types.SimpleNamespace(YES=4, NO=8, OK=1, ICON_INFORMATION=16)
+            with patch.object(module, 'gui', gui), patch.object(module, 'wx', wx), \
+                    patch.object(module.addonHandler, 'getAvailableAddons', lambda: [current], create=True), \
+                    patch.object(module.globalVars.appArgs, 'configPath', 'isolated-config', create=True):
+                updater = module.GitHubReleaseUpdater(identity, 'Ollama Speech', 'OnjLouis', 'ollamaSpeech')
+                updater._saveState = lambda: None
+                updater._scheduleNext = lambda: None
+                updater._downloadAndInstall = lambda info: installed.append(info)
+                updater._handleCheck(True, {'version': '1.0.1', 'notes': 'Voice-list correction'}, None)
+            self.assertEqual(bool(installed), expected)
+            if expected:
+                self.assertIn('correctly named add-on folder', messages[0])
 
 
 if __name__ == "__main__":

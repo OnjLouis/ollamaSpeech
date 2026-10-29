@@ -11,9 +11,9 @@ import gui.settingsDialogs
 import synthDriverHandler
 import wx
 
-from synthDrivers.phonon import _settings, _catalogue
-from synthDrivers.phonon._client import Cancelled, Client, ServerError, Settings, validate
-from synthDrivers.phonon._profiles import family, model_key
+from synthDrivers._ollamaSpeech import _settings, _catalogue
+from synthDrivers._ollamaSpeech._client import Cancelled, Client, ServerError, Settings, validate
+from synthDrivers._ollamaSpeech._profiles import family, model_key
 from ._updater import GitHubReleaseUpdater
 
 addonHandler.initTranslation()
@@ -36,7 +36,7 @@ def _preferred(models, current):
     return next((name for name in models if family(name) == "phonon"), next(iter(models), current))
 
 
-class PhononSettingsPanel(gui.settingsDialogs.SettingsPanel):
+class OllamaSpeechSettingsPanel(gui.settingsDialogs.SettingsPanel):
     title = _("Ollama Speech")
 
     def makeSettings(self, settingsSizer):
@@ -206,12 +206,14 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
             return
         settings = _settings.load()
         _settings.update_interval()
-        self._updater = GitHubReleaseUpdater("phonon", "Ollama Speech", "OnjLouis", "ollamaSpeech")
+        self._updater = GitHubReleaseUpdater(addonHandler.getCodeAddon().name, "Ollama Speech", "OnjLouis", "ollamaSpeech")
         _activeUpdater = self._updater
         self._updater.start()
         categories = gui.settingsDialogs.NVDASettingsDialog.categoryClasses
-        if PhononSettingsPanel not in categories:
-            categories.append(PhononSettingsPanel)
+        if OllamaSpeechSettingsPanel not in categories:
+            categories.append(OllamaSpeechSettingsPanel)
+        if self._updater.addonName == "phonon" and _settings.update_interval() != "never":
+            wx.CallAfter(self._updater.checkNow, False)
         self._registered = True
         try:
             self._client = Client(settings)
@@ -244,6 +246,6 @@ class GlobalPlugin(globalPluginHandler.GlobalPlugin):
                 _activeUpdater = None
         if self._registered:
             categories = gui.settingsDialogs.NVDASettingsDialog.categoryClasses
-            if PhononSettingsPanel in categories:
-                categories.remove(PhononSettingsPanel)
+            if OllamaSpeechSettingsPanel in categories:
+                categories.remove(OllamaSpeechSettingsPanel)
         super().terminate()

@@ -4,6 +4,11 @@ Use Phonon or LFM3-Audio from an Ollama server, with playback through NVDA's sel
 
 ## Changelog
 
+### 1.0.1
+
+- Fixed stale Voice and Language filter choices in NVDA Speech settings after changing a language filter or model. Lists and selections now update together without restarting NVDA, while Cancel still restores the previous settings.
+- Renamed the add-on folder and implementation modules for Ollama Speech. Existing connections, speech profiles and gestures are retained through a small compatibility entry point.
+
 ### 1.0
 
 - First release with Phonon, multilingual Phonon and LFM3-Audio.
@@ -65,6 +70,8 @@ This network synthesizer is unavailable on secure screens.
 In the connection panel, choose **Never**, **Hourly** or **Daily** checks; Daily is the default. **Check for updates now** checks manually. Updates come from this add-on's GitHub releases, not the speech server.
 
 The updater verifies the signed package information and download before installation. NVDA then offers its normal restart prompt.
+
+When updating from 1.0, the first update installs a compatibility package. After restarting NVDA, check for updates once more to finish moving from the old `phonon` add-on folder to `ollamaSpeech`. The second step also uses NVDA's normal restart prompt; it does not restart NVDA automatically. Automatic checks can offer this second step unless you selected Never. New installations should use `ollama-speech-1.0.1.nvda-addon` directly. Saved connections and speech preferences are retained. A small legacy synthesizer entry point remains solely to keep existing profiles and gestures working.
 
 ## Privacy
 

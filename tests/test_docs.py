@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import unittest
 
-from test_phonon import ADDON
+from test_ollama_speech import ADDON
 
 
 class Manual(HTMLParser):
@@ -67,7 +67,7 @@ class DocumentationTests(unittest.TestCase):
         text = re.sub(r"(?m)^```[^\n]*\n?", "", self.readme)
         text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
         text = re.sub(r"(?m)^\d+\. ", "", text)
-        actual = " ".join(self.manual.text).replace("Version 1.0.", "", 1)
+        actual = re.sub(r"\bVersion \d+\.\d+(?:\.\d+)?\.", "", " ".join(self.manual.text), count=1)
         self.assertEqual(re.findall(r"\w+", text), re.findall(r"\w+", actual))
 
 
